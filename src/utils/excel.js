@@ -2,8 +2,12 @@ import * as XLSX from 'xlsx';
 
 /**
  * Đọc file Excel nhập kho Cty.
- * Chấp nhận các cột: "Mã thuốc", "Tên thuốc", "Số lượng", "Phân loại"
- * (không phân biệt hoa/thường, dấu; hỗ trợ 1 vài alias)
+ * Cột chấp nhận (không phân biệt hoa/thường/dấu):
+ *   - Mã thuốc / Barcode
+ *   - Tên thuốc
+ *   - Phân loại
+ *   - Đơn vị (optional)
+ *   - Số lượng (dự kiến mua)
  */
 export async function parseCompanyImportExcel(file) {
   const buf = await file.arrayBuffer();
@@ -13,11 +17,19 @@ export async function parseCompanyImportExcel(file) {
 
   return rows
     .map((r, idx) => {
-      const code = pick(r, ['ma_thuoc', 'ma', 'code']);
+      const code = pick(r, ['ma_thuoc', 'ma', 'code', 'barcode']);
       const name = pick(r, ['ten_thuoc', 'ten', 'name']);
-      const qty  = Number(pick(r, ['so_luong', 'sl', 'quantity']));
       const cat  = pick(r, ['phan_loai', 'phan_loai_thuoc', 'category', 'loai']);
-      return { row: idx + 2, code: String(code).trim(), name: String(name).trim(), quantity: qty, category: String(cat).trim() };
+      const unit = pick(r, ['don_vi', 'unit']);
+      const qty  = Number(pick(r, ['so_luong', 'sl', 'quantity']));
+      return {
+        row: idx + 2,
+        code: String(code).trim(),
+        name: String(name).trim(),
+        category: String(cat).trim(),
+        unit: String(unit).trim(),
+        planned_quantity: qty
+      };
     })
     .filter((r) => r.code || r.name);
 }

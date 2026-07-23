@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
@@ -11,6 +11,8 @@ export default function DistributionReceive() {
   const qc = useQueryClient();
   const { profile, isCompany } = useAuth();
   const [err, setErr] = useState(null);
+  const scanRef = useRef(null);
+  const batchRefs = useRef({});   // code → batch_number input
 
   const { data, isLoading } = useQuery({
     queryKey: ['distribution', id],
@@ -25,7 +27,7 @@ export default function DistributionReceive() {
     }
   });
 
-  const [drafts, setDrafts] = useState({});   // itemId -> { batch_number, expiry_date, manufacture_date }
+  const [drafts, setDrafts] = useState({});
 
   const isReceiver = data && (data.to_org_id === profile?.organization_id);
   const isPending = data?.status === 'pending';
@@ -56,6 +58,7 @@ export default function DistributionReceive() {
   if (isLoading || !data) return <div className="empty-state">Đang tải…</div>;
 
   const allLocked = data.items.length > 0 && data.items.every((i) => i.locked);
+  const lockedCount = data.items.filter((i) => i.locked).length;
 
   const toggleLock = async (item) => {
     if (item.locked) {
@@ -77,6 +80,18 @@ export default function DistributionReceive() {
   const draftField = (itemId, key, def) => drafts[itemId]?.[key] ?? def ?? '';
   const setDraft = (itemId, key, v) => setDrafts((d) => ({ ...d, [itemId]: { ...d[itemId], [key]: v } }));
 
+  const onScan = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const code = (e.target.value || '').trim();
+    if (!code) return;
+    const item = data.items.find((i) => i.medicine.code === code);
+    if (!item) { setErr(`Barcode "${code}" không có trong phiếu`); e.target.select(); return; }
+    setErr(null);
+    e.target.value = '';
+    setTimeout(() => batchRefs.current[code]?.focus(), 0);
+  };
+
   return (
     <>
       <div className="page-header">
@@ -88,39 +103,49 @@ export default function DistributionReceive() {
       </div>
 
       {err && <div className="alert alert-danger">{err}</div>}
-      {!isPending && (
-        <div className="alert alert-info">Phiếu đã {data.status === 'completed' ? 'nhận' : 'huỷ'} — chỉ xem.</div>
-      )}
-      {isPending && !isReceiver && !isCompany() && (
-        <div className="alert alert-warning">Phiếu không phải của đơn vị bạn.</div>
+      {!isPending && <div className="alert alert-info">Phiếu đã {data.status === 'completed' ? 'nhận' : 'huỷ'} — chỉ xem.</div>}
+      {isPending && !isReceiver && !isCompany() && <div className="alert alert-warning">Phiếu không thuộc đơn vị bạn.</div>}
+
+      {canEdit && (
+        <div className="card mb-3">
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Quét barcode để nhảy tới dòng cần nhập lô/HSD</label>
+            <input ref={scanRef} className="input" placeholder="Máy quét sẽ tự gửi Enter…" onKeyDown={onScan} autoFocus />
+          </div>
+        </div>
       )}
 
       <div className="card">
         <div className="card-header">
           <div className="card-title">Danh sách thuốc</div>
-          <div className="text-sub text-sm">Kiểm hàng thực tế, điền lô & HSD, bấm khoá từng dòng.</div>
+          <div className="text-sub text-sm">Đã khoá: <b>{lockedCount}/{data.items.length}</b></div>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl">
             <thead>
               <tr>
-                <th>Thuốc</th>
+                <th>Barcode</th><th>Thuốc</th>
                 <th className="text-right">SL</th>
                 <th style={{ width: 140 }}>Số lô</th>
-                <th style={{ width: 160 }}>NSX</th>
-                <th style={{ width: 160 }}>HSD</th>
+                <th style={{ width: 150 }}>NSX</th>
+                <th style={{ width: 150 }}>HSD</th>
                 <th style={{ width: 100 }}></th>
               </tr>
             </thead>
             <tbody>
               {data.items.map((it) => (
                 <tr key={it.id} style={{ background: it.locked ? 'var(--c-success-lt)' : undefined }}>
+                  <td className="num">{it.medicine.code}</td>
                   <td>{it.medicine.name}</td>
                   <td className="num text-right">{fmtNumber(it.quantity)} {it.medicine.unit}</td>
                   <td>
-                    <input className="input" disabled={it.locked || !canEdit}
+                    <input
+                      ref={(el) => (batchRefs.current[it.medicine.code] = el)}
+                      className="input"
+                      disabled={it.locked || !canEdit}
                       value={draftField(it.id, 'batch_number', it.batch_number)}
-                      onChange={(e) => setDraft(it.id, 'batch_number', e.target.value)} />
+                      onChange={(e) => setDraft(it.id, 'batch_number', e.target.value)}
+                    />
                   </td>
                   <td>
                     <input className="input" type="date" disabled={it.locked || !canEdit}
@@ -148,12 +173,10 @@ export default function DistributionReceive() {
         {canEdit && (
           <div className="mt-4 text-right">
             <button className="btn" onClick={() => nav(-1)}>Quay lại</button>{' '}
-            <button
-              className="btn btn-primary"
+            <button className="btn btn-primary"
               disabled={!allLocked || confirmMut.isPending}
               title={!allLocked ? 'Khoá tất cả dòng trước' : ''}
-              onClick={() => confirmMut.mutate()}
-            >
+              onClick={() => confirmMut.mutate()}>
               {confirmMut.isPending ? 'Đang xác nhận…' : '✅ Xác nhận nhận hàng'}
             </button>
           </div>
