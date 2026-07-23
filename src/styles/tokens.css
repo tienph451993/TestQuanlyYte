@@ -1,0 +1,43 @@
+:root {
+  --c-primary: #2C6FBF;
+  --c-primary-lt: #EBF3FB;
+  --c-primary-dk: #1A4A8A;
+
+  --c-success: #27AE60;
+  --c-success-lt: #EAFAF1;
+  --c-warning: #E67E22;
+  --c-warning-lt: #FEF5EC;
+  --c-danger: #E74C3C;
+  --c-danger-lt: #FDEDEC;
+  --c-caution: #F1C40F;
+  --c-caution-lt: #FEFDE7;
+
+  --c-text-main: #1C2B3A;
+  --c-text-sub: #5A6A7A;
+  --c-text-muted: #9AAAB8;
+  --c-border: #DDE3EA;
+  --c-bg-soft: #F4F6F9;
+  --c-white: #FFFFFF;
+
+  --font-sans: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  --text-xs: 11px; --lh-xs: 16px;
+  --text-sm: 13px; --lh-sm: 18px;
+  --text-base: 15px; --lh-base: 22px;
+  --text-lg: 17px; --lh-lg: 24px;
+  --text-xl: 20px; --lh-xl: 28px;
+  --text-2xl: 26px; --lh-2xl: 34px;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-modal: 0 8px 24px rgba(0,0,0,0.12);
+
+  --sidebar-w: 240px;
+  --header-h: 56px;
+}
