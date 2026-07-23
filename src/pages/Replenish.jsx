@@ -7,23 +7,20 @@ import { getFefoOrder, getStatusFromDays, daysUntil } from '../lib/fefo.js';
 import ExpiryBadge from '../components/shared/ExpiryBadge.jsx';
 import { fmtNumber, fmtDate } from '../utils/format.js';
 
-// Bổ sung tủ / hộp sơ cứu từ kho tổng hợp – hiển thị FEFO order.
+// Bổ sung tủ / hộp sơ cứu từ kho ĐL – chỉ ĐL, scope org của user.
 export default function Replenish() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { profile, isCompany } = useAuth();
 
-  const [orgId, setOrgId] = useState(isCompany() ? '' : profile?.organization_id || '');
+  if (isCompany()) return <div className="alert alert-danger">Cty không bổ sung tủ. Nghiệp vụ này thuộc Điện lực.</div>;
+
+  const orgId = profile?.organization_id;
   const [toLocId, setToLocId] = useState('');
   const [medicineId, setMedicineId] = useState('');
   const [qtyNeeded, setQtyNeeded] = useState(0);
   const [customQtys, setCustomQtys] = useState({});
   const [err, setErr] = useState(null);
-
-  const { data: orgs = [] } = useQuery({
-    queryKey: ['orgs-units'],
-    queryFn: async () => (await supabase.from('organizations').select('*').eq('type','unit').order('code')).data || []
-  });
 
   const { data: locs = [] } = useQuery({
     queryKey: ['locations-of', orgId],
@@ -42,16 +39,13 @@ export default function Replenish() {
   const { data: batches = [] } = useQuery({
     queryKey: ['warehouse-batches', warehouse?.id, medicineId],
     enabled: !!warehouse?.id && !!medicineId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('stock_batches')
-        .select('*')
-        .eq('location_id', warehouse.id)
-        .eq('medicine_id', medicineId)
-        .gt('quantity', 0)
-        .order('expiry_date');
-      return data || [];
-    }
+    queryFn: async () => (await supabase
+      .from('stock_batches')
+      .select('*')
+      .eq('location_id', warehouse.id)
+      .eq('medicine_id', medicineId)
+      .gt('quantity', 0)
+      .order('expiry_date')).data || []
   });
 
   const fefo = useMemo(() => getFefoOrder(batches, Number(qtyNeeded) || 0), [batches, qtyNeeded]);
@@ -65,21 +59,15 @@ export default function Replenish() {
       for (const b of fefo.batches) {
         const take = Number(customQtys[b.id] ?? b.suggested_quantity ?? 0);
         if (take <= 0) continue;
-        if (take > b.quantity) throw new Error(`Lô ${b.batch_number || 'không mã'}: chỉ còn ${b.quantity}, không thể bổ sung ${take}`);
+        if (take > b.quantity) throw new Error(`Lô ${b.batch_number || 'không mã'}: chỉ còn ${b.quantity}`);
 
-        // 1) trừ kho
-        const { error: u1 } = await supabase
-          .from('stock_batches').update({ quantity: b.quantity - take }).eq('id', b.id);
+        const { error: u1 } = await supabase.from('stock_batches').update({ quantity: b.quantity - take }).eq('id', b.id);
         if (u1) throw u1;
 
-        // 2) tăng ở đích: tìm lô cùng medicine+batch_number+expiry ở đích, cộng dồn; nếu chưa có thì tạo mới
         const days = daysUntil(b.expiry_date);
         const { data: existing } = await supabase
-          .from('stock_batches')
-          .select('*')
-          .eq('location_id', toLocId)
-          .eq('medicine_id', b.medicine_id)
-          .eq('expiry_date', b.expiry_date)
+          .from('stock_batches').select('*')
+          .eq('location_id', toLocId).eq('medicine_id', b.medicine_id).eq('expiry_date', b.expiry_date)
           .maybeSingle();
 
         let destBatchId;
@@ -91,33 +79,20 @@ export default function Replenish() {
           destBatchId = existing.id;
         } else {
           const { data: created, error: iErr } = await supabase.from('stock_batches').insert({
-            medicine_id: b.medicine_id,
-            location_id: toLocId,
-            organization_id: orgId,
-            batch_number: b.batch_number,
-            quantity: take,
-            initial_quantity: take,
-            unit: b.unit,
-            manufacture_date: b.manufacture_date,
-            expiry_date: b.expiry_date,
-            source_type: 'from_company',
-            source_ref: b.id,
-            expiry_status: getStatusFromDays(days),
-            created_by: profile.id
+            medicine_id: b.medicine_id, location_id: toLocId, organization_id: orgId,
+            batch_number: b.batch_number, quantity: take, initial_quantity: take, unit: b.unit,
+            manufacture_date: b.manufacture_date, expiry_date: b.expiry_date,
+            source_type: 'from_company', source_ref: b.id,
+            expiry_status: getStatusFromDays(days), created_by: profile.id
           }).select().single();
           if (iErr) throw iErr;
           destBatchId = created.id;
         }
 
-        // 3) transaction
         const { error: tErr } = await supabase.from('transactions').insert({
-          type: 'replenish_location',
-          batch_id: destBatchId,
-          from_location: warehouse.id,
-          to_location: toLocId,
-          quantity: take,
-          performed_by: profile.id,
-          notes: `FEFO source batch ${b.id}`
+          type: 'replenish_location', batch_id: destBatchId,
+          from_location: warehouse.id, to_location: toLocId, quantity: take,
+          performed_by: profile.id, notes: `FEFO source batch ${b.id}`
         });
         if (tErr) throw tErr;
       }
@@ -129,45 +104,44 @@ export default function Replenish() {
     onError: (e) => setErr(e.message)
   });
 
+  if (!warehouse && orgId) {
+    return (
+      <div className="alert alert-warning">
+        Đơn vị chưa có kho tổng hợp. Vào <b>Vị trí kho/tủ</b> tạo trước.
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="page-header"><div className="page-title">Bổ sung tủ / hộp sơ cứu (FEFO)</div></div>
-
       {err && <div className="alert alert-danger">{err}</div>}
 
       <div className="card mb-3">
         <div className="grid-3">
-          {isCompany() && (
-            <div className="field">
-              <label>Đơn vị</label>
-              <select className="select" value={orgId} onChange={(e) => { setOrgId(e.target.value); setToLocId(''); }}>
-                <option value="">— Chọn —</option>
-                {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
-            </div>
-          )}
           <div className="field">
             <label>Bổ sung cho</label>
-            <select className="select" value={toLocId} onChange={(e) => setToLocId(e.target.value)} disabled={!orgId}>
+            <select className="select" value={toLocId} onChange={(e) => setToLocId(e.target.value)}>
               <option value="">— Chọn tủ / hộp —</option>
               {destinations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           <div className="field">
             <label>Thuốc / vật tư</label>
-            <select className="select" value={medicineId} onChange={(e) => { setMedicineId(e.target.value); setCustomQtys({}); }} disabled={!orgId}>
+            <select className="select" value={medicineId} onChange={(e) => { setMedicineId(e.target.value); setCustomQtys({}); }}>
               <option value="">— Chọn —</option>
               {medicines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           <div className="field">
             <label>Số lượng cần bổ sung</label>
-            <input className="input num" type="number" min="0" value={qtyNeeded} onChange={(e) => { setQtyNeeded(e.target.value); setCustomQtys({}); }} />
+            <input className="input num" type="number" min="0" value={qtyNeeded}
+              onChange={(e) => { setQtyNeeded(e.target.value); setCustomQtys({}); }} />
           </div>
         </div>
       </div>
 
-      {medicineId && warehouse && (
+      {medicineId && (
         <div className="card">
           <div className="card-header">
             <div className="card-title">Lô trong kho – thứ tự xuất (FEFO)</div>
@@ -188,14 +162,9 @@ export default function Replenish() {
                   </div>
                   <div className="field" style={{ marginBottom: 0, minWidth: 180 }}>
                     <label>Số lượng bổ sung</label>
-                    <input
-                      className="input num"
-                      type="number"
-                      min="0"
-                      max={b.quantity}
+                    <input className="input num" type="number" min="0" max={b.quantity}
                       value={customQtys[b.id] ?? b.suggested_quantity}
-                      onChange={(e) => setCustomQtys({ ...customQtys, [b.id]: e.target.value })}
-                    />
+                      onChange={(e) => setCustomQtys({ ...customQtys, [b.id]: e.target.value })} />
                   </div>
                 </div>
               </div>

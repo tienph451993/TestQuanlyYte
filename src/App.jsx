@@ -7,8 +7,12 @@ import Dashboard from './pages/Dashboard.jsx';
 import Medicines from './pages/Medicines.jsx';
 import Locations from './pages/Locations.jsx';
 import Inventory from './pages/Inventory.jsx';
-import ImportFromCompany from './pages/ImportFromCompany.jsx';
 import Replenish from './pages/Replenish.jsx';
+import CompanyImport from './pages/CompanyImport.jsx';
+import CompanyStock from './pages/CompanyStock.jsx';
+import Distributions from './pages/Distributions.jsx';
+import DistributionNew from './pages/DistributionNew.jsx';
+import DistributionReceive from './pages/DistributionReceive.jsx';
 
 function Protected({ children }) {
   const { session, loading } = useAuth();
@@ -34,8 +38,12 @@ export default function App() {
                 <Route path="/medicines" element={<Medicines />} />
                 <Route path="/locations" element={<Locations />} />
                 <Route path="/inventory" element={<Inventory />} />
-                <Route path="/inventory/import" element={<ImportFromCompany />} />
                 <Route path="/inventory/replenish" element={<Replenish />} />
+                <Route path="/company/stock" element={<CompanyStock />} />
+                <Route path="/company/import" element={<CompanyImport />} />
+                <Route path="/distributions" element={<Distributions />} />
+                <Route path="/distributions/new" element={<DistributionNew />} />
+                <Route path="/distributions/:id" element={<DistributionReceive />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AppShell>

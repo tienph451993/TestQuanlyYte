@@ -45,15 +45,12 @@ export default function Inventory() {
     });
   }, [batches, locFilter, orgFilter]);
 
-  const canImport = isCompany();
-
   return (
     <>
       <div className="page-header">
         <div className="page-title">Tồn kho theo lô</div>
         <div className="row">
-          {canImport && <Link className="btn" to="/inventory/import">📥 Nhập từ công ty</Link>}
-          <Link className="btn btn-primary" to="/inventory/replenish">📤 Bổ sung tủ (FEFO)</Link>
+          {!isCompany() && <Link className="btn btn-primary" to="/inventory/replenish">📤 Bổ sung tủ (FEFO)</Link>}
         </div>
       </div>
 

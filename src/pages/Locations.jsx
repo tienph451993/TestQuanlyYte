@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
@@ -8,27 +8,17 @@ const DEFAULT_CYCLE = { warehouse: 'quarterly', cabinet: 'monthly', first_aid_ki
 
 export default function Locations() {
   const qc = useQueryClient();
-  const { profile, isCompanyAdmin, isAdmin } = useAuth();
+  const { profile, isCompany, isAdmin } = useAuth();
   const canWrite = isAdmin();
-  const canPickOrg = isCompanyAdmin();
 
   const [editing, setEditing] = useState(null);
-
-  const { data: orgs = [] } = useQuery({
-    queryKey: ['orgs'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('organizations').select('*').order('code');
-      if (error) throw error;
-      return data;
-    }
-  });
 
   const { data: locs = [], isLoading } = useQuery({
     queryKey: ['locations'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('stock_locations')
-        .select('*, organization:organizations(id, code, name)')
+        .select('*, organization:organizations(id, code, name, type)')
         .order('name');
       if (error) throw error;
       return data;
@@ -51,17 +41,28 @@ export default function Locations() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['locations'] }); setEditing(null); }
   });
 
+  // Company chỉ thấy vị trí của org Cty; Unit chỉ thấy vị trí org mình
+  const filteredLocs = useMemo(() => {
+    if (isCompany()) return locs.filter((l) => l.organization?.type === 'company');
+    return locs.filter((l) => l.organization_id === profile?.organization_id);
+  }, [locs, isCompany, profile]);
+
   const startNew = () => {
     setEditing({
       name: '', type: 'cabinet', check_cycle: 'monthly', location_desc: '',
-      organization_id: profile?.organization_id || orgs[0]?.id, is_active: true
+      organization_id: profile?.organization_id, is_active: true
     });
   };
 
   return (
     <>
       <div className="page-header">
-        <div className="page-title">Vị trí kho / tủ / hộp sơ cứu</div>
+        <div>
+          <div className="page-title">Vị trí kho / tủ / hộp sơ cứu</div>
+          <div className="text-sub text-sm">
+            {isCompany() ? 'Vị trí thuộc Công ty (chỉ kho Cty)' : 'Vị trí thuộc đơn vị bạn'}
+          </div>
+        </div>
         {canWrite && <button className="btn btn-primary" onClick={startNew}>+ Thêm vị trí</button>}
       </div>
 
@@ -71,14 +72,13 @@ export default function Locations() {
             <table className="tbl tbl-hover">
               <thead>
                 <tr>
-                  <th>Đơn vị</th><th>Tên</th><th>Loại</th><th>Chu kỳ kiểm kê</th><th>Mô tả</th><th>Trạng thái</th>
+                  <th>Tên</th><th>Loại</th><th>Chu kỳ kiểm kê</th><th>Mô tả</th><th>Trạng thái</th>
                   {canWrite && <th></th>}
                 </tr>
               </thead>
               <tbody>
-                {locs.map((l) => (
+                {filteredLocs.map((l) => (
                   <tr key={l.id}>
-                    <td>{l.organization?.name}</td>
                     <td>{l.name}</td>
                     <td>{TYPE_LABELS[l.type]}</td>
                     <td>{l.check_cycle === 'monthly' ? 'Hàng tháng' : 'Hàng quý'}</td>
@@ -87,7 +87,7 @@ export default function Locations() {
                     {canWrite && <td className="text-right"><button className="btn btn-sm" onClick={() => setEditing(l)}>Sửa</button></td>}
                   </tr>
                 ))}
-                {locs.length === 0 && <tr><td colSpan={7} className="empty-state">Chưa có vị trí nào</td></tr>}
+                {filteredLocs.length === 0 && <tr><td colSpan={6} className="empty-state">Chưa có vị trí nào</td></tr>}
               </tbody>
             </table>
           </div>
@@ -97,8 +97,7 @@ export default function Locations() {
       {editing && (
         <LocationModal
           row={editing}
-          orgs={orgs}
-          lockOrg={!canPickOrg}
+          isCompany={isCompany()}
           onClose={() => setEditing(null)}
           onSave={(r) => saveMut.mutate(r)}
           saving={saveMut.isPending}
@@ -108,7 +107,7 @@ export default function Locations() {
   );
 }
 
-function LocationModal({ row, orgs, lockOrg, onClose, onSave, saving }) {
+function LocationModal({ row, isCompany, onClose, onSave, saving }) {
   const [form, setForm] = useState(row);
   const update = (k, v) => {
     setForm((f) => {
@@ -125,20 +124,14 @@ function LocationModal({ row, orgs, lockOrg, onClose, onSave, saving }) {
           <button className="btn btn-ghost" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
-          <div className="field">
-            <label>Đơn vị</label>
-            <select className="select" disabled={lockOrg} value={form.organization_id || ''} onChange={(e) => update('organization_id', e.target.value)}>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </div>
           <div className="grid-2">
             <div className="field"><label>Tên</label><input className="input" value={form.name} onChange={(e) => update('name', e.target.value)} /></div>
             <div className="field">
               <label>Loại</label>
               <select className="select" value={form.type} onChange={(e) => update('type', e.target.value)}>
                 <option value="warehouse">Kho tổng hợp</option>
-                <option value="cabinet">Tủ thuốc</option>
-                <option value="first_aid_kit">Hộp sơ cứu</option>
+                {!isCompany && <option value="cabinet">Tủ thuốc</option>}
+                {!isCompany && <option value="first_aid_kit">Hộp sơ cứu</option>}
               </select>
             </div>
             <div className="field">
