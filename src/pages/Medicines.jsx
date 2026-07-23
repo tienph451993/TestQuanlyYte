@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
+import { fmtDate } from '../utils/format.js';
 
 const EMPTY = { code: '', name: '', category: 'Thuốc', unit: 'Viên' };
 
@@ -18,7 +19,7 @@ export default function Medicines() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('medicines')
-        .select('id, code, name, category, unit, is_active')
+        .select('id, code, name, category, unit, is_active, created_at')
         .order('code');
       if (error) throw error;
       return data;
@@ -77,7 +78,7 @@ export default function Medicines() {
               <thead>
                 <tr>
                   <th>Mã (barcode)</th><th>Tên</th><th>Phân loại</th><th>Đơn vị</th>
-                  <th>Trạng thái</th>{isCA && <th></th>}
+                  <th>Ngày tạo</th><th>Trạng thái</th>{isCA && <th></th>}
                 </tr>
               </thead>
               <tbody>
@@ -87,6 +88,7 @@ export default function Medicines() {
                     <td>{m.name}</td>
                     <td>{m.category || '—'}</td>
                     <td>{m.unit || '—'}</td>
+                    <td className="text-sub text-sm">{fmtDate(m.created_at)}</td>
                     <td>
                       <span className={`badge ${m.is_active ? 'badge-success' : 'badge-danger'}`}>
                         {m.is_active ? 'Đang dùng' : 'Ngưng'}
@@ -100,7 +102,7 @@ export default function Medicines() {
                     )}
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={isCA ? 6 : 5} className="empty-state">Không có dữ liệu</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={isCA ? 7 : 6} className="empty-state">Không có dữ liệu</td></tr>}
               </tbody>
             </table>
           </div>

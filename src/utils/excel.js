@@ -1,5 +1,33 @@
 import * as XLSX from 'xlsx';
 
+/** Sinh file mẫu Excel cho chuyên viên tải về điền */
+export function downloadImportTemplate() {
+  const wb = XLSX.utils.book_new();
+  const header = [['Mã thuốc (barcode)', 'Tên thuốc', 'Phân loại', 'Đơn vị', 'Số lượng dự kiến mua']];
+  const sample = [
+    ['MED_001', 'Paracetamol 500mg', 'Thuốc', 'Viên', 200],
+    ['MED_016', 'Băng cuộn 5cm', 'Vật tư băng bó', 'Cuộn', 30]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([...header, ...sample]);
+  ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 20 }, { wch: 12 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'NhapKhoCty');
+  XLSX.writeFile(wb, 'MauNhapKhoCongTy.xlsx');
+}
+
+/** Xuất lại danh sách kèm cột "Trạng thái" để chuyên viên biết dòng nào lỗi */
+export function downloadImportWithStatus(rows) {
+  const wb = XLSX.utils.book_new();
+  const header = [['Mã thuốc (barcode)', 'Tên thuốc', 'Phân loại', 'Đơn vị', 'Số lượng dự kiến mua', 'Trạng thái']];
+  const data = rows.map((r) => [
+    r.code, r.name, r.category, r.unit, r.planned_quantity,
+    r.problem ? `❌ ${r.problem}` : '✅ Hợp lệ'
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([...header, ...data]);
+  ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 42 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'NhapKhoCty_Loi');
+  XLSX.writeFile(wb, 'NhapKhoCongTy_DanhSachLoi.xlsx');
+}
+
 /**
  * Đọc file Excel nhập kho Cty.
  * Cột chấp nhận (không phân biệt hoa/thường/dấu):
