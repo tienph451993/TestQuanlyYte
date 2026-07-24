@@ -33,6 +33,7 @@ export default function AppShell({ children }) {
     !isCompany() && { to: '/inventory', label: '📦 Tồn kho ĐL' },
     !isCompany() && { to: '/inventory/replenish', label: '↳ 📤 Bổ sung tủ (FEFO)' },
     !isCompany() && { to: '/stock-checks', label: '📝 Kiểm kê định kỳ' },
+    { to: '/transfers', label: '🔄 Điều chuyển ĐL' },
     { to: '/locations', label: '🏬 Vị trí kho/tủ' },
     { to: '/medicines', label: '🩺 Danh mục thuốc' }
   ].filter(Boolean);
