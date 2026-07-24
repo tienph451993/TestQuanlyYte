@@ -5,11 +5,11 @@ export function downloadImportTemplate() {
   const wb = XLSX.utils.book_new();
   const header = [['Mã thuốc (barcode)', 'Tên thuốc', 'Phân loại', 'Đơn vị', 'Số lượng dự kiến mua']];
   const sample = [
-    ['MED_001', 'Paracetamol 500mg', 'Thuốc', 'Viên', 200],
+    ['MED_001', 'Paracetamol 500mg', 'Thuốc', 'Vỉ', 20],
     ['MED_016', 'Băng cuộn 5cm', 'Vật tư băng bó', 'Cuộn', 30]
   ];
   const ws = XLSX.utils.aoa_to_sheet([...header, ...sample]);
-  ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 20 }, { wch: 12 }, { wch: 20 }];
+  ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 20 }, { wch: 12 }, { wch: 22 }];
   XLSX.utils.book_append_sheet(wb, ws, 'NhapKhoCty');
   XLSX.writeFile(wb, 'MauNhapKhoCongTy.xlsx');
 }

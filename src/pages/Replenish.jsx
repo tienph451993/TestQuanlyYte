@@ -5,7 +5,7 @@ import { useAuth } from '../stores/auth.js';
 import { getFefoOrder, getStatusFromDays, daysUntil, getExpiryStatus } from '../lib/fefo.js';
 import ExpiryBadge from '../components/shared/ExpiryBadge.jsx';
 import BarcodeScanner from '../components/shared/BarcodeScanner.jsx';
-import { fmtDate, fmtNumber } from '../utils/format.js';
+import { fmtDate, fmtNumber, fmtQty } from '../utils/format.js';
 
 // Bổ sung tủ / hộp sơ cứu từ kho tổng hợp ĐL – có giỏ bổ sung nhiều dòng.
 export default function Replenish() {
@@ -39,7 +39,7 @@ export default function Replenish() {
     enabled: !!warehouse?.id,
     queryFn: async () => (await supabase
       .from('stock_batches')
-      .select('*, medicine:medicines(id, code, name, unit)')
+      .select('*, medicine:medicines(id, code, name, unit, pack_size, base_unit)')
       .eq('location_id', warehouse.id)
       .gt('quantity', 0)
       .order('expiry_date')).data || []
@@ -269,7 +269,7 @@ export default function Replenish() {
                     : s.status === 'watch' ? '🟡' : '🟢';
                   return (
                     <option key={g.medicine.id} value={g.medicine.id}>
-                      {g.medicine.name} · Còn {g.total} {g.medicine.unit} · HSD gần nhất {fmtDate(g.earliest)} {emoji}
+                      {g.medicine.name} · Còn {fmtQty(g.total, g.medicine, { compact: true })} · HSD {fmtDate(g.earliest)} {emoji}
                     </option>
                   );
                 })}
@@ -286,7 +286,7 @@ export default function Replenish() {
 
           {selectedGroup && (
             <div className="alert alert-info" style={{ marginTop: 8 }}>
-              <b>{selectedGroup.medicine.name}</b> — Kho còn {availableBatches.reduce((s, b) => s + b.quantity, 0)} {selectedGroup.medicine.unit} · Tủ đích đang có {currentInDestByMed[selectedGroup.medicine.id] || 0}
+              <b>{selectedGroup.medicine.name}</b> — Kho còn {fmtQty(availableBatches.reduce((s, b) => s + b.quantity, 0), selectedGroup.medicine)} · Tủ đích đang có {fmtQty(currentInDestByMed[selectedGroup.medicine.id] || 0, selectedGroup.medicine)}
               {qtyNeeded > 0 && (
                 <div className="text-sm mt-1">
                   <b>FEFO sẽ lấy:</b>{' '}
@@ -317,7 +317,7 @@ export default function Replenish() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>{item.medicine.name}</div>
                     <div className="text-sm text-sub mt-1">
-                      Tủ hiện có: <b className="num">{item.current_in_dest}</b> · Bổ sung: <b className="num text-success">+ {item.take_total}</b> · Sau bổ sung: <b className="num">{item.new_total}</b> {item.medicine.unit}
+                      Tủ hiện có: <b className="num">{fmtQty(item.current_in_dest, item.medicine)}</b> · Bổ sung: <b className="num text-success">+ {fmtQty(item.take_total, item.medicine)}</b> · Sau bổ sung: <b className="num">{fmtQty(item.new_total, item.medicine)}</b>
                     </div>
                     <div className="text-xs text-sub mt-1">
                       Chi tiết lô:{' '}

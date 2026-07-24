@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
-import { fmtNumber } from '../utils/format.js';
+import { fmtNumber, fmtQty } from '../utils/format.js';
 
 const blankLine = () => ({ medicine_id: '', quantity: '' });
 
@@ -27,7 +27,7 @@ export default function DistributionNew() {
     queryKey: ['company-stock-picker'],
     queryFn: async () => (await supabase
       .from('company_stock')
-      .select('quantity, medicine:medicines(id, code, name, unit)')
+      .select('quantity, medicine:medicines(id, code, name, unit, pack_size, base_unit)')
       .gt('quantity', 0)).data || []
   });
 
@@ -138,7 +138,7 @@ export default function DistributionNew() {
                   <td>
                     <select className="select" value={ln.medicine_id} onChange={(e) => update(i, 'medicine_id', e.target.value)}>
                       <option value="">— Chọn —</option>
-                      {stock.map((s) => <option key={s.medicine.id} value={s.medicine.id}>{s.medicine.name}</option>)}
+                      {stock.map((s) => <option key={s.medicine.id} value={s.medicine.id}>{s.medicine.name} · Cty còn {fmtQty(s.quantity, s.medicine, { compact: true })}</option>)}
                     </select>
                   </td>
                   <td className="num text-right">{ln.medicine_id ? fmtNumber(stockByMed[ln.medicine_id]) : '—'}</td>

@@ -123,7 +123,7 @@ function UnitDashboard({ profile }) {
       const in90 = new Date(); in90.setDate(in90.getDate() + 90);
       const { data } = await supabase
         .from('stock_batches')
-        .select('*, medicine:medicines(name, unit), location:stock_locations(name)')
+        .select('*, medicine:medicines(name, unit, pack_size, base_unit), location:stock_locations(name)')
         .gt('quantity', 0)
         .lte('expiry_date', in90.toISOString().slice(0, 10))
         .order('expiry_date').limit(10);

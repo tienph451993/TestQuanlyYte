@@ -4,10 +4,10 @@ import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
 import { fmtDate } from '../utils/format.js';
 
-const EMPTY = { code: '', name: '', category: 'Thuốc', unit: 'Viên' };
+const EMPTY = { code: '', name: '', category: 'Thuốc', unit: 'Vỉ', pack_size: '', base_unit: 'Viên' };
 
 // Danh mục thuốc = master catalog cố định.
-// Chỉ có: Mã (barcode), Tên, Phân loại, Đơn vị. KHÔNG có tồn kho / HSD ở đây.
+// Mã (barcode), Tên, Phân loại, Đơn vị (Vỉ/Hộp/Lọ…), Vỉ có bao nhiêu viên, Đơn vị gốc, Ngày tạo.
 export default function Medicines() {
   const qc = useQueryClient();
   const isCA = useAuth((s) => s.isCompanyAdmin());
@@ -19,7 +19,7 @@ export default function Medicines() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('medicines')
-        .select('id, code, name, category, unit, is_active, created_at')
+        .select('id, code, name, category, unit, pack_size, base_unit, is_active, created_at')
         .order('code');
       if (error) throw error;
       return data;
@@ -32,7 +32,9 @@ export default function Medicines() {
         code: row.code.trim(),
         name: row.name.trim(),
         category: row.category?.trim() || null,
-        unit: row.unit?.trim() || null
+        unit: row.unit?.trim() || null,
+        pack_size: row.pack_size ? Number(row.pack_size) : null,
+        base_unit: row.base_unit?.trim() || null
       };
       if (row.id) {
         const { error } = await supabase.from('medicines').update(payload).eq('id', row.id);
@@ -62,7 +64,7 @@ export default function Medicines() {
       <div className="page-header">
         <div>
           <div className="page-title">Danh mục thuốc & vật tư</div>
-          <div className="text-sub text-sm">Danh mục cố định – mã barcode, tên, phân loại, đơn vị.</div>
+          <div className="text-sub text-sm">Cột "1 Vỉ = ? Viên" chỉ dùng cho thuốc dạng vỉ, để trống với vật tư (băng, lọ…).</div>
         </div>
         {isCA && <button className="btn btn-primary" onClick={() => setEditing({ ...EMPTY })}>+ Thêm mới</button>}
       </div>
@@ -73,11 +75,12 @@ export default function Medicines() {
           <div className="flex-1 text-right text-sub text-sm" style={{ alignSelf: 'center' }}>{filtered.length} loại</div>
         </div>
         {isLoading ? <div className="empty-state">Đang tải…</div> : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="tbl-wrap">
             <table className="tbl tbl-hover">
               <thead>
                 <tr>
-                  <th>Mã (barcode)</th><th>Tên</th><th>Phân loại</th><th>Đơn vị</th>
+                  <th>Mã (barcode)</th><th>Tên</th><th>Phân loại</th>
+                  <th>Đơn vị</th><th className="text-right">1 đơn vị =</th>
                   <th>Ngày tạo</th><th>Trạng thái</th>{isCA && <th></th>}
                 </tr>
               </thead>
@@ -88,6 +91,9 @@ export default function Medicines() {
                     <td>{m.name}</td>
                     <td>{m.category || '—'}</td>
                     <td>{m.unit || '—'}</td>
+                    <td className="num text-right">
+                      {m.pack_size && m.base_unit ? `${m.pack_size} ${m.base_unit}` : '—'}
+                    </td>
                     <td className="text-sub text-sm">{fmtDate(m.created_at)}</td>
                     <td>
                       <span className={`badge ${m.is_active ? 'badge-success' : 'badge-danger'}`}>
@@ -102,7 +108,7 @@ export default function Medicines() {
                     )}
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={isCA ? 7 : 6} className="empty-state">Không có dữ liệu</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={isCA ? 8 : 7} className="empty-state">Không có dữ liệu</td></tr>}
               </tbody>
             </table>
           </div>
@@ -137,7 +143,27 @@ function MedicineModal({ row, onClose, onSave, saving }) {
                 <option>Khác</option>
               </select>
             </div>
-            <div className="field"><label>Đơn vị</label><input className="input" value={form.unit || ''} onChange={(e) => update('unit', e.target.value)} placeholder="Viên / Gói / Lọ / Cuộn…" /></div>
+            <div className="field">
+              <label>Đơn vị xuất/nhập</label>
+              <select className="select" value={form.unit || ''} onChange={(e) => update('unit', e.target.value)}>
+                <option>Vỉ</option><option>Hộp</option><option>Lọ</option>
+                <option>Cuộn</option><option>Gói</option><option>Cái</option>
+                <option>Chai</option><option>Đôi</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid-2">
+            <div className="field">
+              <label>1 {form.unit || 'Đơn vị'} có bao nhiêu?</label>
+              <input className="input num" type="number" min="1" placeholder="Bỏ trống với vật tư (băng, lọ…)" value={form.pack_size || ''} onChange={(e) => update('pack_size', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Đơn vị gốc</label>
+              <input className="input" placeholder="Viên / mL…" value={form.base_unit || ''} onChange={(e) => update('base_unit', e.target.value)} />
+            </div>
+          </div>
+          <div className="text-sub text-xs">
+            Ví dụ: Paracetamol → Đơn vị = <b>Vỉ</b>, 1 Vỉ = <b>10 Viên</b>. Băng cuộn → Đơn vị = <b>Cuộn</b>, để trống 2 ô sau.
           </div>
         </div>
         <div className="modal-footer">

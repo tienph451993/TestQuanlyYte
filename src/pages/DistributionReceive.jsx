@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
-import { fmtDate, fmtNumber } from '../utils/format.js';
+import { fmtDate, fmtNumber, fmtQty } from '../utils/format.js';
 import BarcodeScanner from '../components/shared/BarcodeScanner.jsx';
 
 export default function DistributionReceive() {
@@ -30,7 +30,7 @@ export default function DistributionReceive() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('distributions')
-        .select('*, to_org:organizations!to_org_id(id, name), items:distribution_items(*, medicine:medicines(code, name, unit))')
+        .select('*, to_org:organizations!to_org_id(id, name), items:distribution_items(*, medicine:medicines(code, name, unit, pack_size, base_unit))')
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -153,7 +153,7 @@ export default function DistributionReceive() {
                 <tr key={it.id} style={{ background: it.locked ? 'var(--c-success-lt)' : undefined }}>
                   <td className="num">{it.medicine.code}</td>
                   <td>{it.medicine.name}</td>
-                  <td className="num text-right">{fmtNumber(it.quantity)} {it.medicine.unit}</td>
+                  <td className="num text-right">{fmtQty(it.quantity, it.medicine)}</td>
                   <td>
                     <input
                       ref={(el) => (batchRefs.current[it.medicine.code] = el)}

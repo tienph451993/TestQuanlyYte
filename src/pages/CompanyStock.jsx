@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
-import { fmtNumber } from '../utils/format.js';
+import { fmtNumber, fmtQty } from '../utils/format.js';
 
 export default function CompanyStock() {
   const { isCompany } = useAuth();
@@ -13,7 +13,7 @@ export default function CompanyStock() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('company_stock')
-        .select('quantity, updated_at, medicine:medicines(id, code, name, category, unit)')
+        .select('quantity, updated_at, medicine:medicines(id, code, name, category, unit, pack_size, base_unit)')
         .order('medicine(name)');
       if (error) throw error;
       return data;
@@ -43,7 +43,7 @@ export default function CompanyStock() {
                     <td className="num">{s.medicine.code}</td>
                     <td>{s.medicine.name}</td>
                     <td>{s.medicine.category || '—'}</td>
-                    <td className="num text-right">{fmtNumber(s.quantity)} {s.medicine.unit}</td>
+                    <td className="num text-right">{fmtQty(s.quantity, s.medicine)}</td>
                     <td className="text-sub text-sm">{new Date(s.updated_at).toLocaleString('vi-VN')}</td>
                   </tr>
                 ))}
