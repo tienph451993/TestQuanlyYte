@@ -31,3 +31,24 @@ export function fmtQty(quantity, medicine, opts = {}) {
   }
   return parts.join(' ');
 }
+
+/**
+ * Hiển thị số lượng theo vị trí:
+ *   - Kho (warehouse): dùng fmtQty như cũ ("5 Vỉ (~50 Viên)")
+ *   - Tủ / hộp: qty đã ở base_unit, chỉ hiện "50 Viên"
+ */
+export function fmtQtyByLocation(quantity, medicine, locationType) {
+  if (quantity == null) return '—';
+  const isCabinet = locationType === 'cabinet' || locationType === 'first_aid_kit';
+  if (isCabinet && medicine?.pack_size && medicine?.base_unit) {
+    return `${fmtNumber(quantity)} ${medicine.base_unit}`;
+  }
+  return fmtQty(quantity, medicine);
+}
+
+/** Đơn vị hiển thị theo vị trí */
+export function unitByLocation(medicine, locationType) {
+  const isCabinet = locationType === 'cabinet' || locationType === 'first_aid_kit';
+  if (isCabinet && medicine?.pack_size && medicine?.base_unit) return medicine.base_unit;
+  return medicine?.unit || '';
+}

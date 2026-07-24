@@ -5,7 +5,7 @@ import { useAuth } from '../stores/auth.js';
 import { getFefoOrder, getStatusFromDays, daysUntil, getExpiryStatus } from '../lib/fefo.js';
 import ExpiryBadge from '../components/shared/ExpiryBadge.jsx';
 import BarcodeScanner from '../components/shared/BarcodeScanner.jsx';
-import { fmtDate, fmtNumber, fmtQty } from '../utils/format.js';
+import { fmtDate, fmtNumber, fmtQty, fmtQtyByLocation } from '../utils/format.js';
 
 // Bổ sung tủ / hộp sơ cứu từ kho tổng hợp ĐL – có giỏ bổ sung nhiều dòng.
 export default function Replenish() {
@@ -124,25 +124,29 @@ export default function Replenish() {
       take: b.suggested_quantity
     }));
 
+    const m = selectedGroup.medicine;
+    const pack = m.pack_size || 1;
+    const take_in_base = needed * pack;   // Số Viên/base_unit sẽ đưa vào tủ
     const item = {
-      medicine: selectedGroup.medicine,
-      breakdown,
-      take_total: needed,
-      current_in_dest: currentInDestByMed[selectedGroup.medicine.id] || 0
+      medicine: m,
+      breakdown,                            // theo Vỉ
+      take_total: needed,                   // Vỉ user nhập
+      take_in_base,                         // Viên tương ứng
+      current_in_dest: currentInDestByMed[m.id] || 0  // Viên
     };
-    item.new_total = item.current_in_dest + needed;
+    item.new_total = item.current_in_dest + take_in_base;
 
     if (existingIdx >= 0) {
       const merged = { ...cart[existingIdx] };
       merged.take_total += needed;
-      // Merge breakdown by batch_id
+      merged.take_in_base = merged.take_total * pack;
       const bMap = new Map(merged.breakdown.map((x) => [x.batch_id, { ...x }]));
       for (const nb of breakdown) {
         if (bMap.has(nb.batch_id)) bMap.get(nb.batch_id).take += nb.take;
         else bMap.set(nb.batch_id, { ...nb });
       }
       merged.breakdown = Array.from(bMap.values()).sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
-      merged.new_total = merged.current_in_dest + merged.take_total;
+      merged.new_total = merged.current_in_dest + merged.take_in_base;
       setCart(cart.map((c, i) => (i === existingIdx ? merged : c)));
     } else {
       setCart([...cart, item]);
@@ -163,15 +167,19 @@ export default function Replenish() {
       if (!toLocId) throw new Error('Chọn tủ đích');
 
       for (const item of cart) {
+        const pack = item.medicine.pack_size || 1;
         for (const b of item.breakdown) {
-          // 1) trừ kho
+          const takeInPack = b.take;                  // số Vỉ trừ khỏi kho
+          const takeInBase = takeInPack * pack;       // số Viên cộng vào tủ
+
+          // 1) trừ kho (theo Vỉ)
           const { data: source, error: sErr } = await supabase.from('stock_batches').select('quantity').eq('id', b.batch_id).single();
           if (sErr) throw sErr;
-          const { error: u1 } = await supabase.from('stock_batches').update({ quantity: source.quantity - b.take }).eq('id', b.batch_id);
+          const { error: u1 } = await supabase.from('stock_batches').update({ quantity: source.quantity - takeInPack }).eq('id', b.batch_id);
           if (u1) throw u1;
 
           const days = daysUntil(b.expiry_date);
-          // 2) tăng ở đích: tìm lô cùng expiry, cộng dồn; nếu chưa có tạo mới
+          // 2) tăng ở đích (theo Viên nếu tủ + có pack_size)
           const { data: existing } = await supabase
             .from('stock_batches').select('*')
             .eq('location_id', toLocId)
@@ -182,14 +190,14 @@ export default function Replenish() {
           let destBatchId;
           if (existing) {
             const { error: u2 } = await supabase.from('stock_batches')
-              .update({ quantity: existing.quantity + b.take, expiry_status: getStatusFromDays(days) })
+              .update({ quantity: existing.quantity + takeInBase, expiry_status: getStatusFromDays(days) })
               .eq('id', existing.id);
             if (u2) throw u2;
             destBatchId = existing.id;
           } else {
             const { data: created, error: iErr } = await supabase.from('stock_batches').insert({
               medicine_id: item.medicine.id, location_id: toLocId, organization_id: orgId,
-              batch_number: b.batch_number, quantity: b.take, initial_quantity: b.take, unit: b.unit,
+              batch_number: b.batch_number, quantity: takeInBase, initial_quantity: takeInBase, unit: b.unit,
               manufacture_date: b.manufacture_date, expiry_date: b.expiry_date,
               source_type: 'from_company', source_ref: b.batch_id,
               expiry_status: getStatusFromDays(days), created_by: profile.id
@@ -198,11 +206,10 @@ export default function Replenish() {
             destBatchId = created.id;
           }
 
-          // 3) transaction
           const { error: tErr } = await supabase.from('transactions').insert({
             type: 'replenish_location', batch_id: destBatchId,
-            from_location: warehouse.id, to_location: toLocId, quantity: b.take,
-            performed_by: profile.id, notes: `FEFO source ${b.batch_id}`
+            from_location: warehouse.id, to_location: toLocId, quantity: takeInBase,
+            performed_by: profile.id, notes: `FEFO source ${b.batch_id} · ${takeInPack} ${item.medicine.unit} → ${takeInBase} ${item.medicine.base_unit || item.medicine.unit}`
           });
           if (tErr) throw tErr;
         }
@@ -286,7 +293,7 @@ export default function Replenish() {
 
           {selectedGroup && (
             <div className="alert alert-info" style={{ marginTop: 8 }}>
-              <b>{selectedGroup.medicine.name}</b> — Kho còn {fmtQty(availableBatches.reduce((s, b) => s + b.quantity, 0), selectedGroup.medicine)} · Tủ đích đang có {fmtQty(currentInDestByMed[selectedGroup.medicine.id] || 0, selectedGroup.medicine)}
+              <b>{selectedGroup.medicine.name}</b> — Kho còn {fmtQty(availableBatches.reduce((s, b) => s + b.quantity, 0), selectedGroup.medicine)} · Tủ đích đang có <b className="num">{currentInDestByMed[selectedGroup.medicine.id] || 0}</b> {selectedGroup.medicine.base_unit || selectedGroup.medicine.unit}
               {qtyNeeded > 0 && (
                 <div className="text-sm mt-1">
                   <b>FEFO sẽ lấy:</b>{' '}
@@ -317,7 +324,9 @@ export default function Replenish() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>{item.medicine.name}</div>
                     <div className="text-sm text-sub mt-1">
-                      Tủ hiện có: <b className="num">{fmtQty(item.current_in_dest, item.medicine)}</b> · Bổ sung: <b className="num text-success">+ {fmtQty(item.take_total, item.medicine)}</b> · Sau bổ sung: <b className="num">{fmtQty(item.new_total, item.medicine)}</b>
+                      Tủ hiện có: <b className="num">{fmtNumber(item.current_in_dest)} {item.medicine.base_unit || item.medicine.unit}</b>
+                      {' · '}Bổ sung: <b className="num text-success">+ {fmtNumber(item.take_total)} {item.medicine.unit}{item.medicine.pack_size ? ` (= ${fmtNumber(item.take_in_base)} ${item.medicine.base_unit})` : ''}</b>
+                      {' · '}Sau bổ sung: <b className="num">{fmtNumber(item.new_total)} {item.medicine.base_unit || item.medicine.unit}</b>
                     </div>
                     <div className="text-xs text-sub mt-1">
                       Chi tiết lô:{' '}

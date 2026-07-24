@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
-import { fmtDate, fmtNumber, fmtQty } from '../utils/format.js';
+import { fmtDate, fmtNumber, fmtQty, fmtQtyByLocation, unitByLocation } from '../utils/format.js';
 import ExpiryBadge from '../components/shared/ExpiryBadge.jsx';
 
 export default function StockCheckDo() {
@@ -96,7 +96,7 @@ export default function StockCheckDo() {
       {isQuarterly ? (
         <QuarterlyTable data={data} drafts={drafts} setDrafts={setDrafts} isDone={isDone} />
       ) : (
-        <MonthlyTable data={data} batchesByMed={batchesByMed} drafts={drafts} setDrafts={setDrafts} isDone={isDone} />
+        <MonthlyTable data={data} batchesByMed={batchesByMed} drafts={drafts} setDrafts={setDrafts} isDone={isDone} locationType={data.check.location?.type} />
       )}
 
       {!isDone && (
@@ -111,18 +111,21 @@ export default function StockCheckDo() {
   );
 }
 
-function MonthlyTable({ data, batchesByMed, drafts, setDrafts, isDone }) {
+function MonthlyTable({ data, batchesByMed, drafts, setDrafts, isDone, locationType }) {
   const items = data.items;
   return (
     <div className="card">
-      <div className="card-header"><div className="card-title">Nhập tổng thực tế mỗi loại</div></div>
+      <div className="card-header">
+        <div className="card-title">Nhập tổng thực tế mỗi loại</div>
+        <div className="text-sub text-sm">Đơn vị nhập theo cột hiển thị (Viên với thuốc dạng vỉ, Cuộn/Lọ/… với vật tư).</div>
+      </div>
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
             <tr>
               <th>Thuốc</th>
               <th className="text-right">Sổ sách</th>
-              <th style={{ width: 140 }}>Thực tế</th>
+              <th style={{ width: 160 }}>Thực tế</th>
               <th className="text-right">Chênh</th>
               <th>Chi tiết lô</th>
             </tr>
@@ -133,22 +136,26 @@ function MonthlyTable({ data, batchesByMed, drafts, setDrafts, isDone }) {
               const actual = Number(draft);
               const diff = Number.isFinite(actual) ? actual - it.system_quantity : null;
               const bList = batchesByMed.get(it.medicine_id) || [];
+              const displayUnit = unitByLocation(it.medicine, locationType);
               return (
                 <tr key={it.id}>
                   <td><b>{it.medicine?.name}</b><div className="text-xs text-sub num">{it.medicine?.code}</div></td>
-                  <td className="num text-right">{fmtQty(it.system_quantity, it.medicine)}</td>
+                  <td className="num text-right">{fmtQtyByLocation(it.system_quantity, it.medicine, locationType)}</td>
                   <td>
-                    <input className="input num" type="number" min="0" disabled={isDone}
-                      value={draft}
-                      onChange={(e) => setDrafts({ ...drafts, [it.id]: e.target.value })} />
+                    <div className="row" style={{ gap: 4 }}>
+                      <input className="input num" type="number" min="0" disabled={isDone}
+                        value={draft}
+                        onChange={(e) => setDrafts({ ...drafts, [it.id]: e.target.value })} style={{ flex: 1 }} />
+                      <span className="text-sub text-xs" style={{ alignSelf: 'center' }}>{displayUnit}</span>
+                    </div>
                   </td>
                   <td className={`num text-right ${diff === null ? '' : diff === 0 ? 'text-success' : diff > 0 ? 'text-warning' : 'text-danger'}`}>
                     {diff === null ? '—' : diff > 0 ? `+${diff}` : diff}
                   </td>
                   <td className="text-xs">
-                    {bList.map((b, i) => (
+                    {bList.map((b) => (
                       <div key={b.id}>
-                        {b.batch_number || 'Không mã'}: <span className="num">{b.quantity}</span> <ExpiryBadge date={b.expiry_date} />
+                        {b.batch_number || 'Không mã'}: <span className="num">{b.quantity}</span> {displayUnit} <ExpiryBadge date={b.expiry_date} />
                       </div>
                     ))}
                   </td>
@@ -160,7 +167,7 @@ function MonthlyTable({ data, batchesByMed, drafts, setDrafts, isDone }) {
         </table>
       </div>
       <div className="alert alert-info mt-3">
-        Hệ thống sẽ tự phân bổ chênh lệch âm (tiêu hao) từ lô HSD gần nhất theo FEFO, và ghi vào usage_logs.
+        Kiểm kê tủ nhập <b>tổng số Viên</b> (đếm cả vỉ nguyên × 10 + viên rời). Hệ thống tự trừ FEFO từ lô HSD gần nhất và ghi usage_logs.
       </div>
     </div>
   );

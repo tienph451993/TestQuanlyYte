@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
 import ExpiryBadge from '../components/shared/ExpiryBadge.jsx';
-import { fmtNumber, fmtQty } from '../utils/format.js';
+import { fmtNumber, fmtQty, fmtQtyByLocation } from '../utils/format.js';
 
 export default function Inventory() {
   const { profile, isCompany } = useAuth();
@@ -97,7 +97,7 @@ export default function Inventory() {
                     <td>{b.medicine?.name}</td>
                     <td className="num">{b.batch_number || '—'}</td>
                     <td><ExpiryBadge date={b.expiry_date} withDate /></td>
-                    <td className="num text-right">{fmtQty(b.quantity, b.medicine)}</td>
+                    <td className="num text-right">{fmtQtyByLocation(b.quantity, b.medicine, b.location?.type)}</td>
                     <td><StatusBadge status={b.expiry_status} /></td>
                   </tr>
                 ))}
