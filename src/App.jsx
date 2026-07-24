@@ -13,6 +13,9 @@ import CompanyStock from './pages/CompanyStock.jsx';
 import Distributions from './pages/Distributions.jsx';
 import DistributionNew from './pages/DistributionNew.jsx';
 import DistributionReceive from './pages/DistributionReceive.jsx';
+import StockChecks from './pages/StockChecks.jsx';
+import StockCheckNew from './pages/StockCheckNew.jsx';
+import StockCheckDo from './pages/StockCheckDo.jsx';
 
 function Protected({ children }) {
   const { session, loading } = useAuth();
@@ -44,6 +47,9 @@ export default function App() {
                 <Route path="/distributions" element={<Distributions />} />
                 <Route path="/distributions/new" element={<DistributionNew />} />
                 <Route path="/distributions/:id" element={<DistributionReceive />} />
+                <Route path="/stock-checks" element={<StockChecks />} />
+                <Route path="/stock-checks/new" element={<StockCheckNew />} />
+                <Route path="/stock-checks/:id" element={<StockCheckDo />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AppShell>

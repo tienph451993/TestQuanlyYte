@@ -32,6 +32,7 @@ export default function AppShell({ children }) {
     { to: '/distributions', label: '🚚 Phân phối', badge: pendingCount || null },
     !isCompany() && { to: '/inventory', label: '📦 Tồn kho ĐL' },
     !isCompany() && { to: '/inventory/replenish', label: '↳ 📤 Bổ sung tủ (FEFO)' },
+    !isCompany() && { to: '/stock-checks', label: '📝 Kiểm kê định kỳ' },
     { to: '/locations', label: '🏬 Vị trí kho/tủ' },
     { to: '/medicines', label: '🩺 Danh mục thuốc' }
   ].filter(Boolean);
