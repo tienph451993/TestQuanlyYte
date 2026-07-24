@@ -61,20 +61,20 @@ export default function StockCheckDo() {
     onError: (e) => setErr(e.message)
   });
 
-  if (isLoading || !data?.check) return <div className="empty-state">Đang tải…</div>;
-
-  const isDone = data.check.status === 'completed';
-  const isQuarterly = data.check.check_type === 'quarterly';
-
   // Với monthly: gom batches theo medicine để hiển thị breakdown chi tiết
   const batchesByMed = useMemo(() => {
     const m = new Map();
-    for (const b of data.batches) {
+    for (const b of data?.batches || []) {
       if (!m.has(b.medicine_id)) m.set(b.medicine_id, []);
       m.get(b.medicine_id).push(b);
     }
     return m;
-  }, [data.batches]);
+  }, [data?.batches]);
+
+  if (isLoading || !data?.check) return <div className="empty-state">Đang tải…</div>;
+
+  const isDone = data.check.status === 'completed';
+  const isQuarterly = data.check.check_type === 'quarterly';
 
   return (
     <>
