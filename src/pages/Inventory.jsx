@@ -115,14 +115,14 @@ export default function Inventory() {
 
 function StatusBadge({ status }) {
   const map = {
-    ok: ['badge-success', 'Còn hạn'],
-    watch: ['badge-caution', 'Theo dõi'],
-    action_required: ['badge-warning', 'Cần xác nhận'],
-    urgent: ['badge-danger', 'Khẩn'],
-    final_check: ['badge-danger', 'Kiểm tra ngay'],
-    expired: ['badge-danger', 'Hết hạn'],
-    disposed: ['badge', 'Đã tiêu huỷ']
+    ok:              ['badge-success', 'Còn hạn',        'HSD > 90 ngày'],
+    watch:           ['badge-caution', 'Theo dõi',       '61–90 ngày'],
+    action_required: ['badge-warning', 'Cần xác nhận',   '31–60 ngày'],
+    urgent:          ['badge-danger',  'Khẩn',           '4–30 ngày'],
+    final_check:     ['badge-danger',  'Kiểm tra ngay',  '1–3 ngày'],
+    expired:         ['badge-danger',  'Hết hạn',        'quá hạn'],
+    disposed:        ['badge',         'Đã tiêu huỷ',    null]
   };
-  const [cls, label] = map[status] || ['badge', status];
-  return <span className={`badge ${cls}`}>{label}</span>;
+  const [cls, label, range] = map[status] || ['badge', status, null];
+  return <span className={`badge ${cls}`}>{label}{range ? ` (${range})` : ''}</span>;
 }
