@@ -63,9 +63,17 @@ export async function parseCompanyImportExcel(file) {
 }
 
 function pick(row, keys) {
-  const norm = {};
-  for (const k of Object.keys(row)) norm[normalize(k)] = row[k];
-  for (const k of keys) if (norm[k] != null && norm[k] !== '') return norm[k];
+  const entries = Object.keys(row).map((k) => [normalize(k), row[k]]);
+  // Exact match trước
+  for (const k of keys) {
+    const hit = entries.find(([kn]) => kn === k);
+    if (hit && hit[1] !== '' && hit[1] != null) return hit[1];
+  }
+  // Fallback: header chứa key
+  for (const k of keys) {
+    const hit = entries.find(([kn]) => kn.includes(k));
+    if (hit && hit[1] !== '' && hit[1] != null) return hit[1];
+  }
   return '';
 }
 
