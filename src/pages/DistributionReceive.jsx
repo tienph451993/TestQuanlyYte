@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
 import { fmtDate, fmtNumber } from '../utils/format.js';
+import BarcodeScanner from '../components/shared/BarcodeScanner.jsx';
 
 export default function DistributionReceive() {
   const { id } = useParams();
@@ -11,8 +12,18 @@ export default function DistributionReceive() {
   const qc = useQueryClient();
   const { profile, isCompany } = useAuth();
   const [err, setErr] = useState(null);
+  const [showScanner, setShowScanner] = useState(false);
   const scanRef = useRef(null);
-  const batchRefs = useRef({});   // code → batch_number input
+  const batchRefs = useRef({});
+
+  const handleCode = (code) => {
+    code = String(code || '').trim();
+    if (!code) return;
+    const item = data?.items?.find((i) => i.medicine.code === code);
+    if (!item) { setErr(`Barcode "${code}" không có trong phiếu`); return; }
+    setErr(null);
+    setTimeout(() => batchRefs.current[code]?.focus(), 0);
+  };   // code → batch_number input
 
   const { data, isLoading } = useQuery({
     queryKey: ['distribution', id],
@@ -83,13 +94,9 @@ export default function DistributionReceive() {
   const onScan = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const code = (e.target.value || '').trim();
-    if (!code) return;
-    const item = data.items.find((i) => i.medicine.code === code);
-    if (!item) { setErr(`Barcode "${code}" không có trong phiếu`); e.target.select(); return; }
-    setErr(null);
+    const code = e.target.value;
     e.target.value = '';
-    setTimeout(() => batchRefs.current[code]?.focus(), 0);
+    handleCode(code);
   };
 
   return (
@@ -110,9 +117,18 @@ export default function DistributionReceive() {
         <div className="card mb-3">
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Quét barcode để nhảy tới dòng cần nhập lô/HSD</label>
-            <input ref={scanRef} className="input" placeholder="Máy quét sẽ tự gửi Enter…" onKeyDown={onScan} autoFocus />
+            <div className="row">
+              <input ref={scanRef} className="input" placeholder="Máy quét USB / gõ tay + Enter…" onKeyDown={onScan} autoFocus style={{ flex: 1, minWidth: 200 }} />
+              <button className="btn btn-primary" onClick={() => setShowScanner(true)}>📷 Camera</button>
+            </div>
           </div>
         </div>
+      )}
+      {showScanner && (
+        <BarcodeScanner
+          onDetect={(code) => { setShowScanner(false); handleCode(code); }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
 
       <div className="card">

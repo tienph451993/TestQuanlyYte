@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../stores/auth.js';
 import { parseCompanyImportExcel, downloadImportTemplate, downloadImportWithStatus } from '../utils/excel.js';
 import { fmtNumber } from '../utils/format.js';
+import BarcodeScanner from '../components/shared/BarcodeScanner.jsx';
 
 // 2 bước:
 // 1. Upload Excel → check barcode hợp lệ vs danh mục. Có lỗi thì trả file, chặn bước 2
@@ -19,8 +20,18 @@ export default function CompanyImport() {
   const [fileInfo, setFileInfo] = useState(null);
   const [rows, setRows] = useState([]);
   const [err, setErr] = useState(null);
+  const [showScanner, setShowScanner] = useState(false);
   const scanRef = useRef(null);
   const rowRefs = useRef({});
+
+  const handleCode = (code) => {
+    code = String(code || '').trim();
+    if (!code) return;
+    const found = validRows.find((r) => r.code === code);
+    if (!found) { setErr(`Không có barcode "${code}" trong danh sách nhập kho`); return; }
+    setErr(null);
+    setTimeout(() => rowRefs.current[code]?.focus(), 0);
+  };
 
   const onFile = async (e) => {
     setErr(null);
@@ -66,13 +77,9 @@ export default function CompanyImport() {
   const onScan = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const code = (e.target.value || '').trim();
-    if (!code) return;
-    const found = validRows.find((r) => r.code === code);
-    if (!found) { setErr(`Không có barcode "${code}" trong danh sách nhập kho`); e.target.select(); return; }
-    setErr(null);
+    const code = e.target.value;
     e.target.value = '';
-    setTimeout(() => rowRefs.current[code]?.focus(), 0);
+    handleCode(code);
   };
 
   const setActual = (code, v) =>
@@ -208,10 +215,19 @@ export default function CompanyImport() {
           <div className="card mb-3">
             <div className="field">
               <label>Quét mã barcode để nhảy tới dòng cần nhập</label>
-              <input ref={scanRef} className="input" placeholder="Máy quét sẽ tự gửi Enter…" onKeyDown={onScan} autoFocus />
-              <div className="text-sub text-xs mt-1">Nhập xong Enter → focus quay lại đây để quét tiếp.</div>
+              <div className="row">
+                <input ref={scanRef} className="input" placeholder="Máy quét USB / gõ tay + Enter…" onKeyDown={onScan} autoFocus style={{ flex: 1, minWidth: 200 }} />
+                <button className="btn btn-primary" onClick={() => setShowScanner(true)}>📷 Camera</button>
+              </div>
+              <div className="text-sub text-xs mt-1">Nhập xong Enter → focus quay lại ô này để quét tiếp.</div>
             </div>
           </div>
+          {showScanner && (
+            <BarcodeScanner
+              onDetect={(code) => { setShowScanner(false); handleCode(code); }}
+              onClose={() => setShowScanner(false)}
+            />
+          )}
 
           <div className="grid-4 mb-3">
             <MiniKpi label="Dòng cần nhập" value={stats.total} />
